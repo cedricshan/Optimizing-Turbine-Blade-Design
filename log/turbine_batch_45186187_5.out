@@ -1,0 +1,9 @@
+Array task 5 started at Mon Apr  6 09:15:48 PM EDT 2026 on dcc-dhvimdcore-gpu-ferc-s-o15-2  PROJ=/hpc/home/rx67/turbine_project_Yuan
+=== Batch Run #5 | 06-Apr-2026 21:17:04 ===
+Input: [2.04e+11, 0.259, 5.21e-06, 13.7, 53.2, 2.26e+05]
+[Warning: MATLAB has disabled some advanced graphics rendering features by
+switching to software OpenGL. For more information, click <a
+href="matlab:opengl('problems')">here</a>.] 
+Stress: 4.081548e+08 | Displ: 1.029591e-03 | Feasible: true | Time: 62.7 s
+=== Run #5 Complete ===
+Array task 5 finished at Mon Apr  6 09:18:30 PM EDT 2026
