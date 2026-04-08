@@ -33,7 +33,7 @@ abstract: |
 
 Gas turbine engines convert high-temperature, high-pressure combustion gases into mechanical energy for aircraft propulsion and power generation. The turbine blades within these engines operate under extreme conditions: inlet temperatures can exceed 1,500°C, well above the melting point of most metal alloys. This creates severe thermal and mechanical loads that induce stress and deformation in the blades. Prolonged exposure accelerates engine degradation, making turbine blade design a critical engineering challenge.
 
-Physical prototyping is expensive and time-consuming, so we use a finite-element model (FEM) computer simulator that predicts the von Mises stress distribution and displacement across the blade surface. The simulator accepts six input variables and returns two scalar outputs: maximum stress and maximum displacement.
+Physical prototyping is expensive and time-consuming, so we use a finite-element model (FEM) computer simulator that predicts the von Mises stress distribution and displacement across the blade surface. The simulator accepts six input variables (@tbl-inputs) and returns two scalar outputs: maximum stress and maximum displacement.
 
 | Variable | Description | Range | Type |
 |:----|:------------|:----------|:-----|
@@ -96,7 +96,7 @@ $$
 \log p(\mathbf{y} \mid \mathbf{Z}) = -\frac{1}{2}\mathbf{y}^\top \mathbf{K}^{-1}\mathbf{y} - \frac{1}{2}\log|\mathbf{K}| - \frac{n}{2}\log(2\pi)
 $$
 
-where $\mathbf{K}$ is the $n \times n$ covariance matrix with $K_{ij} = k(\mathbf{z}_i, \mathbf{z}_j) + \sigma_n^2 \delta_{ij}$. Model accuracy is assessed via 10-fold cross-validation with hyperparameters re-estimated in each fold.
+where $\mathbf{K}$ is the $n \times n$ covariance matrix with $K_{ij} = k(\mathbf{z}_i, \mathbf{z}_j) + \sigma_n^2 \delta_{ij}$. Model accuracy is assessed via 10-fold cross-validation with hyperparameters re-estimated in each fold. @tbl-cv summarizes the CV metrics; both surrogates achieve $R^2 > 0.99$. @fig-cv plots predicted versus actual values — the tight clustering around the 45° line confirms excellent predictive accuracy. @fig-qq shows QQ plots of standardized residuals; the close agreement with the theoretical diagonal indicates that the GP uncertainty estimates are well-calibrated, with empirical 95%-coverage near the nominal level.
 
 | Response | CV $R^2$ | RMSE | MAPE | 95% Coverage |
 |:---------|:---------|:-----|:-----|:-------------|
@@ -143,13 +143,13 @@ This yields 9 runs per candidate (27 total), covering the extreme corners of the
 
 ## Phase 5: Final Validation (23 runs)
 
-The remaining 23 runs provide final verification: 20 random $(x_5, x_6)$ perturbations via a 2D LHD, plus 3 material property perturbations to confirm local optimality.
+The remaining 23 runs provide final verification: all 23 are random $(x_5, x_6)$ perturbations sampled via a 2D LHD to confirm local optimality.
 
 # Results
 
 ## Exploratory Analysis
 
-The initial 100 simulations reveal that stress spans a nearly $4\times$ range $[4.46 \times 10^8,\; 1.71 \times 10^9]$ Pa, and only 43% of designs satisfy the displacement constraint. Stress and displacement are strongly positively correlated ($r = 0.80$), meaning that optimizing for low stress naturally helps satisfy the displacement constraint.
+The initial 100 simulations reveal that stress spans a nearly $4\times$ range $[4.46 \times 10^8,\; 1.71 \times 10^9]$ Pa, and only 43% of designs satisfy the displacement constraint. Stress and displacement are strongly positively correlated ($r = 0.80$), meaning that optimizing for low stress naturally helps satisfy the displacement constraint. @fig-dist shows the marginal distributions of both responses; the displacement histogram highlights that more than half of the initial designs exceed the feasibility threshold $d^*$. Per-variable scatter plots are provided in @fig-scatter (Appendix B), where infeasible designs (red) cluster visibly at high CTE values.
 
 ![Distributions of stress (a) and displacement (b) from the initial 100-run LHD. Red dashed line: $d^* = 1.3 \times 10^{-3}$.](figures/fig1_distributions.png){#fig-dist width=75%}
 
@@ -168,7 +168,7 @@ The ARD length-scale parameters $\theta_j$ provide an interpretable variable imp
 
 : ARD length-scale analysis. For stress, $x_3$ (CTE) has the shortest $\theta$ and highest importance. {#tbl-sensitivity}
 
-For stress, $x_3$ (CTE) has the shortest length-scale ($\theta_3 = 3.16$), making it the most influential variable (30.1%), followed by $x_1$ (17.7%) and $x_2$ (17.1%). Raw Pearson correlations confirm: $|r(x_3, \text{stress})| = 0.87$, far exceeding all others ($< 0.39$). For displacement, $x_2$ shows a short length-scale (1.60) due to local nonlinearity, but the dominant global driver remains $x_3$ ($|r| = 0.90$).
+For stress, $x_3$ (CTE) has the shortest length-scale ($\theta_3 = 3.16$), making it the most influential variable (30.1%), followed by $x_1$ (17.7%) and $x_2$ (17.1%). Raw Pearson correlations confirm: $|r(x_3, \text{stress})| = 0.87$, far exceeding all others ($< 0.39$). For displacement, $x_2$ shows a short length-scale (1.60) due to local nonlinearity, but the dominant global driver remains $x_3$ ($|r| = 0.90$). These rankings are detailed in @tbl-sensitivity and visualized as bar charts in @fig-sensitivity. @fig-main displays the main-effect profiles: as each input sweeps from its lower to upper bound (with all other inputs held at center), the steep decline of stress with decreasing $x_3$ is evident, while the displacement constraint (red dashed line) is most sensitive to $x_6$ (pressure load).
 
 ![Variable importance from ARD length-scales. Blue: material; orange: operational.](figures/fig5_sensitivity.png){#fig-sensitivity width=75%}
 
@@ -185,7 +185,7 @@ For stress, $x_3$ (CTE) has the shortest length-scale ($\theta_3 = 3.16$), makin
 
 : Sequential optimization convergence. {#tbl-convergence}
 
-The first 20 sequential runs achieved the largest improvement (35.7%), as the GP rapidly identified the low-CTE corner. Subsequent batches refined with diminishing returns, indicating convergence.
+The first 20 sequential runs achieved the largest improvement (35.7%), as the GP rapidly identified the low-CTE corner. Subsequent batches refined with diminishing returns, indicating convergence. @tbl-convergence summarizes the cumulative improvement at each stage, and @fig-conv visualizes the full trajectory: the green best-feasible curve in panel (a) drops steeply during the first batch and flattens thereafter, while panel (b) shows that nearly all sequential points remain well below the displacement threshold $d^*$.
 
 ![Convergence: (a) stress (blue=feasible, red=infeasible; green=best trajectory). (b) displacement with $d^*$ threshold.](figures/fig7_convergence.png){#fig-conv width=80%}
 
@@ -202,7 +202,7 @@ The first 20 sequential runs achieved the largest improvement (35.7%), as the GP
 
 : Recommended blade design specification. {#tbl-design}
 
-The optimizer pushes CTE to its minimum, consistent with the sensitivity analysis. Young's Modulus is at its lower bound (softer material absorbs deformation without high stress), and cooling temperature is at the minimum (maximum cooling). The Poisson's Ratio is near its upper bound (0.477), allowing lateral expansion that relieves stress concentrations. Three variables at their bounds suggests expanding the design ranges could yield further improvements.
+The optimizer pushes CTE to its minimum, consistent with the sensitivity analysis. Young's Modulus is at its lower bound (softer material absorbs deformation without high stress), and cooling temperature is at the minimum (maximum cooling). The Poisson's Ratio is near its upper bound (0.477), allowing lateral expansion that relieves stress concentrations. Three variables at their bounds suggests expanding the design ranges could yield further improvements. @tbl-design lists the full optimal specification, and @fig-blade shows the simulated von Mises stress field — the predominantly blue coloring confirms uniformly low stress across the blade surface.
 
 ![Simulated von Mises stress profile for the recommended blade design. The predominantly blue coloring confirms uniformly low stress ($\sim 2.6 \times 10^8$ Pa).](figures/optimal_design.png){#fig-blade width=60%}
 
@@ -218,7 +218,7 @@ The $3 \times 3$ factorial grid tests each candidate at 9 extreme combinations o
 
 : Robustness comparison across 3 diverse candidates. {#tbl-robust}
 
-All three candidates achieve 100% feasibility. Candidate 1 has the lowest mean stress and smallest variability (CV = 0.36%).
+All three candidates achieve 100% feasibility, as shown in @tbl-robust. Candidate 1 has the lowest mean stress and smallest variability (CV = 0.36%). @fig-robust displays the corresponding boxplots: the stress distributions (panel a) are tightly concentrated for all three candidates, and every displacement observation (panel b) falls well below $d^*$.
 
 ![Robust comparison: stress (a) and displacement (b) boxplots for 3 candidates on a $3 \times 3$ grid.](figures/fig8_robust.png){#fig-robust width=70%}
 
@@ -236,7 +236,7 @@ All three candidates achieve 100% feasibility. Candidate 1 has the lowest mean s
 
 : Final validation results for the recommended design. {#tbl-validation}
 
-All 20 perturbation runs satisfy the constraint, with worst-case displacement 45% below $d^*$. The 3 material perturbation runs all produce higher stress, confirming a local optimum.
+All 20 perturbation runs satisfy the constraint, with worst-case displacement 45% below $d^*$ (@tbl-validation). The 3 material perturbation runs all produce higher stress, confirming a local optimum. @fig-valid presents histograms of the validation results: stress (panel a) clusters tightly around the mean with a CV of only 0.27%, and all displacement values (panel b) remain far below the $d^*$ threshold.
 
 ![Final validation: stress (a) and displacement (b) under 20 random operational perturbations.](figures/fig9_validation.png){#fig-valid width=70%}
 
@@ -248,7 +248,7 @@ Three recommendations emerge: (1) prioritize alloys with the lowest CTE — it i
 
 ## Budget Allocation
 
-All 300 runs used: 100 initial (33%), 150 sequential (50%), 27 robust grid (9%), 23 final validation (8%). The two-stage validation — structured $3 \times 3$ grid then random perturbations — provides layered evidence of robustness.
+All 300 runs used: 100 initial (33%), 150 sequential (50%), 27 robust grid (9%), 23 final validation (8%). @fig-budget visualizes this allocation. The two-stage validation — structured $3 \times 3$ grid then random perturbations — provides layered evidence of robustness.
 
 ![Budget allocation across all four phases.](figures/fig10_budget.png){#fig-budget width=50%}
 
@@ -284,9 +284,11 @@ Through a four-phase framework — maximin LHD, GP surrogate modeling, sequentia
 | Seq. Batches 1–2 | 40 | 140 | First EIC batches |
 | Seq. Batches 3–8 | 110 | 250 | Continued optimization |
 | Robust $3 \times 3$ Grid | 27 | 277 | 3 candidates $\times$ 9 perturbations |
-| Final Validation | 23 | 300 | 20 random + 3 material |
+| Final Validation | 23 | 300 | 23 random perturbations |
 
 ## B. Input–Response Scatter Plots {.unnumbered}
+
+@fig-scatter shows each of the six inputs plotted against stress (top row) and displacement (bottom row) for the 100 initial LHD runs. Infeasible designs (red) tend to concentrate at high CTE ($x_3$) and high pressure load ($x_6$) values, consistent with the sensitivity analysis discussed in the main text.
 
 ![Each input vs. responses (100 LHD). Blue = feasible; red = infeasible.](figures/fig2_scatter.png){#fig-scatter width=85%}
 
