@@ -19,7 +19,7 @@ import os, warnings
 warnings.filterwarnings('ignore')
 
 # ── Constants ────────────────────────────────────────────────────────────────
-PROJECT = "/hpc/home/rx67/turbine_project_Yuan"
+PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIG = os.path.join(PROJECT, "figures"); os.makedirs(FIG, exist_ok=True)
 VARS   = ['x1','x2','x3','x4','x5','x6']
 LABELS = ["Young's Mod.","Poisson's Ratio","CTE","Therm. Cond.",
@@ -49,11 +49,11 @@ print(f"  corr(stress,displ) = {np.corrcoef(s0,d0)[0,1]:.3f}")
 
 fig,ax = plt.subplots(1,2,figsize=(11,4))
 ax[0].hist(s0,20,edgecolor='k',color='steelblue',alpha=.7)
-ax[0].set_xlabel('Stress (Pa)'); ax[0].set_ylabel('Count'); ax[0].set_title('(a) Stress')
+ax[0].set_xlabel('Stress (Pa)'); ax[0].set_ylabel('Count')
 ax[1].hist(d0,20,edgecolor='k',color='darkorange',alpha=.7)
 ax[1].axvline(D_STAR,c='red',ls='--',lw=2,label=f'd*={D_STAR:.1e}')
 ax[1].set_xlabel('Displacement (m)'); ax[1].set_ylabel('Count')
-ax[1].set_title('(b) Displacement'); ax[1].legend()
+ax[1].legend()
 plt.tight_layout(); plt.savefig(f'{FIG}/fig1_distributions.png',dpi=150); plt.close()
 
 fig,axes = plt.subplots(2,6,figsize=(22,7))
@@ -66,7 +66,6 @@ for j in range(6):
         if j==0: a.set_ylabel(nm)
         if r==1: a.axhline(D_STAR,c='red',ls='--',lw=1)
         if j==5 and r==0: a.legend(fontsize=7)
-fig.suptitle('Figure 2. Inputs vs Responses',fontsize=13)
 plt.tight_layout(); plt.savefig(f'{FIG}/fig2_scatter.png',dpi=150); plt.close()
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -109,8 +108,7 @@ for i,(nm,d) in enumerate(cv.items()):
     lo,hi=min(d['y'].min(),d['pr'].min()),max(d['y'].max(),d['pr'].max())
     m=(hi-lo)*.05; a.plot([lo-m,hi+m],[lo-m,hi+m],'r--',lw=1.5)
     a.set_xlabel(f'Actual {nm}'); a.set_ylabel(f'Predicted {nm}')
-    a.set_title(f'{nm} (R$^2$={d["r2"]:.4f})'); a.set_aspect('equal')
-fig.suptitle('Figure 3. 10-Fold Cross-Validation',fontsize=13)
+    a.set_aspect('equal')
 plt.tight_layout(); plt.savefig(f'{FIG}/fig3_cv.png',dpi=150); plt.close()
 
 # Fig 4: QQ plot
@@ -121,9 +119,8 @@ for i,(nm,d) in enumerate(cv.items()):
     a.scatter(th,sr,s=18,alpha=.6,c='steelblue')
     a.plot([-3,3],[-3,3],'r--',lw=1.5)
     a.set_xlabel('Theoretical Quantiles'); a.set_ylabel('Standardized Residuals')
-    a.set_title(f'{nm} (95%-cov={d["cov95"]:.0%})')
+    pass
     a.set_xlim(-3.5,3.5); a.set_ylim(-3.5,3.5)
-fig.suptitle('Figure 4. QQ Plots of CV Residuals',fontsize=13)
 plt.tight_layout(); plt.savefig(f'{FIG}/fig4_qq.png',dpi=150); plt.close()
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -145,9 +142,8 @@ for i,(lab,gp) in enumerate([('Stress',gp_s),('Displacement',gp_d)]):
     ls=gp.kernel_.k1.k2.length_scale; imp=1./ls; imp_n=imp/imp.sum()
     a=axes[i]; a.bar(VARS,imp_n,color=colors,edgecolor='k',alpha=.8)
     a.set_ylabel('Relative Importance (1/length-scale)')
-    a.set_title(lab); a.set_ylim(0,max(imp_n)*1.3)
+    a.set_ylim(0,max(imp_n)*1.3)
     for k,v in enumerate(imp_n): a.text(k,v+.008,f'{v:.3f}',ha='center',fontsize=9)
-fig.suptitle('Figure 5. Variable Importance (ARD Length-Scale)',fontsize=13)
 plt.tight_layout(); plt.savefig(f'{FIG}/fig5_sensitivity.png',dpi=150); plt.close()
 
 # Fig 6: main effects
@@ -161,7 +157,6 @@ for j in range(6):
         a.set_xlabel(VARS[j])
         if j==0: a.set_ylabel(nm)
         if r==1: a.axhline(D_STAR,c='red',ls='--',lw=1)
-fig.suptitle('Figure 6. Main Effects (others at center)',fontsize=13)
 plt.tight_layout(); plt.savefig(f'{FIG}/fig6_main_effects.png',dpi=150); plt.close()
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -182,13 +177,11 @@ ax[0].scatter(range(250),ys[:250],s=8,alpha=.4,c=c)
 v=~np.isnan(bc); ax[0].plot(np.where(v)[0],bc[v],'g-',lw=2,label='Best feasible')
 ax[0].axvline(100,c='gray',ls='--',alpha=.5,label='End of LHD')
 ax[0].set_xlabel('Run'); ax[0].set_ylabel('Stress'); ax[0].legend(fontsize=8)
-ax[0].set_title('(a) Stress Convergence')
+pass
 ax[1].scatter(range(250),yd[:250],s=8,alpha=.4,c=c)
 ax[1].axhline(D_STAR,c='red',ls='--',lw=1.5,label=f'd*={D_STAR:.1e}')
 ax[1].axvline(100,c='gray',ls='--',alpha=.5)
 ax[1].set_xlabel('Run'); ax[1].set_ylabel('Displacement'); ax[1].legend(fontsize=8)
-ax[1].set_title('(b) Displacement')
-fig.suptitle('Figure 7. Optimization Convergence',fontsize=13)
 plt.tight_layout(); plt.savefig(f'{FIG}/fig7_convergence.png',dpi=150); plt.close()
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -209,12 +202,11 @@ box_s=[rob.iloc[c*9:(c+1)*9]['stress'].values for c in range(3)]
 box_d=[rob.iloc[c*9:(c+1)*9]['displacement'].values for c in range(3)]
 bp=axes[0].boxplot(box_s,labels=labels_c,patch_artist=True)
 for b,col in zip(bp['boxes'],['steelblue','darkorange','green']): b.set_facecolor(col)
-axes[0].set_ylabel('Stress (Pa)'); axes[0].set_title('(a) Stress by Candidate')
+axes[0].set_ylabel('Stress (Pa)')
 bp2=axes[1].boxplot(box_d,labels=labels_c,patch_artist=True)
 for b,col in zip(bp2['boxes'],['steelblue','darkorange','green']): b.set_facecolor(col)
 axes[1].axhline(D_STAR,c='red',ls='--',lw=1.5,label=f'd*={D_STAR:.1e}')
-axes[1].set_ylabel('Displacement (m)'); axes[1].set_title('(b) Displacement'); axes[1].legend()
-fig.suptitle('Figure 8. Robust Comparison (3 candidates, 9 grid points each)',fontsize=13)
+axes[1].set_ylabel('Displacement (m)'); axes[1].legend()
 plt.tight_layout(); plt.savefig(f'{FIG}/fig8_robust.png',dpi=150); plt.close()
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -235,12 +227,11 @@ fig,ax=plt.subplots(1,2,figsize=(11,4.5))
 ax[0].hist(s_v,12,edgecolor='k',color='steelblue',alpha=.7)
 ax[0].axvline(s_v.mean(),c='green',lw=2,label=f'Mean={s_v.mean():.3e}')
 ax[0].set_xlabel('Stress'); ax[0].set_ylabel('Count')
-ax[0].set_title('(a) Stress under Uncertainty'); ax[0].legend(fontsize=8)
+ax[0].legend(fontsize=8)
 ax[1].hist(d_v,12,edgecolor='k',color='darkorange',alpha=.7)
 ax[1].axvline(D_STAR,c='red',ls='--',lw=2,label=f'd*={D_STAR:.1e}')
 ax[1].set_xlabel('Displacement'); ax[1].set_ylabel('Count')
-ax[1].set_title('(b) Displacement'); ax[1].legend(fontsize=8)
-fig.suptitle('Figure 9. Final Validation (20 perturbation runs)',fontsize=13)
+ax[1].legend(fontsize=8)
 plt.tight_layout(); plt.savefig(f'{FIG}/fig9_validation.png',dpi=150); plt.close()
 
 # Budget pie
@@ -248,7 +239,7 @@ fig,ax=plt.subplots(figsize=(6,4))
 ax.bar(['Initial\nLHD','Sequential\nEIC','Robust\n3x3 Grid','Final\nValidation'],
        [100,150,27,23],color=['steelblue','darkorange','green','purple'],edgecolor='k',alpha=.8)
 for k,v in enumerate([100,150,27,23]): ax.text(k,v+3,str(v),ha='center',fontweight='bold')
-ax.set_ylabel('Runs'); ax.set_title('Figure 10. Budget (300/300)')
+ax.set_ylabel('Runs')
 plt.tight_layout(); plt.savefig(f'{FIG}/fig10_budget.png',dpi=150); plt.close()
 
 print("\n"+"="*60+"\nAll figures saved to figures/\n"+"="*60)

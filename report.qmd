@@ -1,5 +1,5 @@
 ---
-title: "Optimizing Turbine Blade Design: A Data-Driven Approach Using Gaussian Process Surrogates and Bayesian Optimization"
+title: "Optimizing Turbine Blade Design"
 subtitle: "STA 643 — Design and Analysis of Experiments"
 date: "April 2026"
 format:
@@ -29,11 +29,13 @@ abstract: |
 
 # Introduction
 
-## Background and Motivation
+## Background
 
-Gas turbine engines convert high-temperature, high-pressure combustion gases into mechanical energy for aircraft propulsion and power generation. The turbine blades within these engines operate under extreme conditions: inlet temperatures can exceed 1,500°C, well above the melting point of most metal alloys. This creates severe thermal and mechanical loads that induce stress and deformation in the blades. Prolonged exposure accelerates engine degradation, making turbine blade design a critical engineering challenge.
+Gas turbine engines convert high-temperature, high-pressure combustion gases into mechanical energy for aircraft propulsion and power generation. The turbine blades within these engines operate under extreme conditions: inlet temperatures can be as high as 1,500°C, well above the melting point of most metal alloys. This creates severe thermal and mechanical loads that induce stress and deformation in the blades. Prolonged exposure accelerates engine degradation, making turbine blade design a critical engineering challenge.
 
-Physical prototyping is expensive and time-consuming, so we use a finite-element model (FEM) computer simulator that predicts the von Mises stress distribution and displacement across the blade surface. The simulator accepts six input variables (@tbl-inputs) and returns two scalar outputs: maximum stress and maximum displacement.
+Given a limited experimental budget, this project aims to find a material design and cooling schedule for the turbine blades that minimizes blade stress and deformation, while respecting a displacement feasibility constraint and accounting for operational uncertainties in cooling temperature and pressure load.
+
+Physical prototyping is expensive and time-consuming, so we use a finite-element model (FEM) computer simulator that predicts the von Mises stress distribution and displacement across the blade surface. The simulator accepts six input variables and returns two scalar outputs: maximum stress and maximum displacement.
 
 | Variable | Description | Range | Type |
 |:----|:---------|:----------|:--------|
@@ -66,7 +68,7 @@ $$
 \end{aligned}
 $$
 
-where $d^* = 1.3 \times 10^{-3}$ m is the displacement failure threshold. The computational budget is limited to 300 simulator evaluations, each taking approximately 80 seconds.
+where $d^* = 1.3 \times 10^{-3}$ m is the displacement failure threshold. In words, we seek the material and operational settings that yield the lowest expected stress averaged over operational noise, while ensuring the probability of exceeding the critical displacement threshold remains acceptably small. The computational budget is limited to 300 simulator evaluations, each taking approximately 80 seconds.
 
 # Methodology
 
@@ -76,7 +78,7 @@ We generated a 100-point maximin Latin Hypercube Design (LHD) in the six-dimensi
 
 ## Phase 2: Gaussian Process Surrogate Model
 
-We fit independent Gaussian Process (GP) models for stress and displacement. A GP defines a distribution over functions: given observed data, it provides a posterior mean $\mu(\mathbf{z})$ (best prediction) and posterior variance $\sigma^2(\mathbf{z})$ (uncertainty) at any untested point:
+We fit independent Gaussian Process (GP) models for stress and displacement. GPs are a natural choice for emulating expensive computer experiments: they interpolate deterministic simulator outputs exactly, provide closed-form uncertainty quantification at untested inputs, and integrate seamlessly with Bayesian optimization via the Expected Improvement criterion. A GP defines a distribution over functions: given observed data, it provides a posterior mean $\mu(\mathbf{z})$ (best prediction) and posterior variance $\sigma^2(\mathbf{z})$ (uncertainty) at any untested point:
 
 $$
 y(\mathbf{z}) \sim \mathcal{GP}\!\left(\mu,\; k(\mathbf{z}, \mathbf{z}')\right)
@@ -96,22 +98,11 @@ $$
 \log p(\mathbf{y} \mid \mathbf{Z}) = -\frac{1}{2}\mathbf{y}^\top \mathbf{K}^{-1}\mathbf{y} - \frac{1}{2}\log|\mathbf{K}| - \frac{n}{2}\log(2\pi)
 $$
 
-where $\mathbf{K}$ is the $n \times n$ covariance matrix with $K_{ij} = k(\mathbf{z}_i, \mathbf{z}_j) + \sigma_n^2 \delta_{ij}$. Model accuracy is assessed via 10-fold cross-validation with hyperparameters re-estimated in each fold. @tbl-cv summarizes the CV metrics; both surrogates achieve $R^2 > 0.99$. @fig-cv plots predicted versus actual values — the tight clustering around the 45° line confirms excellent predictive accuracy. @fig-qq shows QQ plots of standardized residuals; the close agreement with the theoretical diagonal indicates that the GP uncertainty estimates are well-calibrated, with empirical 95%-coverage near the nominal level.
-
-| Response | CV $R^2$ | RMSE | MAPE | 95% Coverage |
-|:---------|:---------|:-----|:-----|:-------------|
-| Stress | 0.9956 | $1.82 \times 10^7$ | 1.33% | 92% |
-| Displacement | 0.9942 | $2.79 \times 10^{-5}$ | 1.06% | 91% |
-
-: 10-fold cross-validation results for the GP surrogates. {#tbl-cv}
-
-![10-fold CV: predicted vs actual for stress (left) and displacement (right).](figures/fig3_cv.png){#fig-cv width=80%}
-
-![QQ plots of standardized CV residuals confirm well-calibrated uncertainty.](figures/fig4_qq.png){#fig-qq width=80%}
+where $\mathbf{K}$ is the $n \times n$ covariance matrix with $K_{ij} = k(\mathbf{z}_i, \mathbf{z}_j) + \sigma_n^2 \delta_{ij}$. Model accuracy is assessed via 10-fold cross-validation with hyperparameters re-estimated in each fold (see @sec-gp-results).
 
 ## Phase 3: Sequential Constrained Optimization (150 runs)
 
-We sequentially select new evaluation points by maximizing the Expected Improvement with Constraints (EIC):
+With a limited budget, we need an acquisition function that balances exploring uncertain regions of the design space with exploiting regions where the GP predicts low stress, while also respecting the displacement constraint. The Expected Improvement with Constraints (EIC) criterion achieves this by multiplying the expected improvement in stress by the probability of feasibility. We sequentially select new evaluation points by maximizing EIC:
 
 $$
 \text{EIC}(\mathbf{z}) = \text{EI}(\mathbf{z}) \cdot \Pr[\text{displacement}(\mathbf{z}) < d^*]
@@ -131,48 +122,40 @@ $$
 
 We generate batches of 15–20 points per iteration with a diversified strategy (EIC on 80,000 random candidates with minimum-distance penalty). Over 150 sequential runs, the best feasible stress improved from $4.46 \times 10^8$ to $2.64 \times 10^8$ Pa.
 
-## Phase 4: Robust Validation (27 runs)
+## Phase 4: Robust Validation and Final Verification (50 runs)
 
-We select 3 diverse top candidates and evaluate each on a $3 \times 3$ factorial grid of operational perturbations:
+After 250 evaluations in Phases 1–3, we select 3 top candidates for robust testing. Candidates are chosen from all feasible designs (displacement $< d^*$) by ranking on observed stress. To ensure the candidates represent diverse regions of the near-optimal space rather than clustered duplicates, we impose a minimum pairwise Euclidean distance threshold in the normalized input space: starting from the lowest-stress feasible design, each subsequent candidate must exceed a minimum distance from all previously selected candidates. Each candidate is then evaluated on a $3 \times 3$ factorial grid of operational perturbations:
 
 $$
 x_5 \in \{x_5^* - 2,\; x_5^*,\; x_5^* + 2\}, \quad x_6 \in \{x_6^* - 10^4,\; x_6^*,\; x_6^* + 10^4\}
 $$
 
-This yields 9 runs per candidate (27 total), covering the extreme corners of the operational tolerance region.
+This yields 9 runs per candidate (27 total), covering the extreme corners of the operational tolerance region. We compare the 3 candidates using mean stress ($\mathbb{E}[\text{stress}]$), coefficient of variation (CV), and feasibility rate (fraction of perturbations with displacement $< d^*$). The candidate with the best robust performance — lowest mean stress and 100% displacement feasibility across all perturbations — is selected as the final recommended design.
 
-## Phase 5: Final Validation (23 runs)
-
-The remaining 23 runs provide final verification: all 23 are random $(x_5, x_6)$ perturbations sampled via a 2D LHD to confirm local optimality.
+The remaining 23 runs provide additional verification: random $(x_5, x_6)$ perturbations sampled via a 2D LHD around the recommended design to further confirm robustness under operational uncertainty.
 
 # Results
 
 ## Exploratory Analysis
 
-The initial 100 simulations reveal that stress spans a nearly $4\times$ range $[4.46 \times 10^8,\; 1.71 \times 10^9]$ Pa, and only 43% of designs satisfy the displacement constraint. Stress and displacement are strongly positively correlated ($r = 0.80$), meaning that optimizing for low stress naturally helps satisfy the displacement constraint. @fig-dist shows the marginal distributions of both responses; the displacement histogram highlights that more than half of the initial designs exceed the feasibility threshold $d^*$. Per-variable scatter plots are provided in @fig-scatter (Appendix B), where infeasible designs (red) cluster visibly at high CTE values.
+The initial 100 simulations reveal that stress spans a nearly $4\times$ range $[4.46 \times 10^8,\; 1.71 \times 10^9]$ Pa, and only 43% of designs satisfy the displacement constraint (@fig-dist). Stress and displacement are strongly positively correlated ($r = 0.80$), so optimizing for low stress naturally helps satisfy the displacement constraint.
 
 ![Distributions of stress (a) and displacement (b) from the initial 100-run LHD. Red dashed line: $d^* = 1.3 \times 10^{-3}$.](figures/fig1_distributions.png){#fig-dist width=75%}
 
-## Sensitivity Analysis
+## Surrogate Model Performance {#sec-gp-results}
 
-The ARD length-scale parameters $\theta_j$ provide an interpretable variable importance measure. Shorter $\theta_j$ means the GP output changes more rapidly with input $j$. Relative importance is $(1/\theta_j) / \sum_k (1/\theta_k)$.
+Both GP surrogates achieve excellent predictive accuracy under 10-fold cross-validation (@tbl-cv; @fig-cv), with well-calibrated uncertainty estimates (@fig-qq).
 
-| Variable | Stress $\theta$ | Stress Imp. | Displ. $\theta$ | Displ. Imp. |
-|:---------|:----------------|:------------|:----------------|:------------|
-| $x_1$ (Young's Mod.) | 5.38 | 0.177 | 10.00 | 0.070 |
-| $x_2$ (Poisson's) | 5.57 | 0.171 | 1.60 | 0.440 |
-| $x_3$ (CTE) | **3.16** | **0.301** | 5.05 | 0.139 |
-| $x_4$ (Therm. Cond.) | 10.00 | 0.095 | 6.74 | 0.104 |
-| $x_5$ (Cooling) | 6.63 | 0.143 | 10.00 | 0.070 |
-| $x_6$ (Pressure) | 8.38 | 0.114 | 3.97 | 0.177 |
+| Response | CV $R^2$ | RMSE | MAPE | 95% Coverage |
+|:---------|:---------|:-----|:-----|:-------------|
+| Stress | 0.9956 | $1.82 \times 10^7$ | 1.33% | 92% |
+| Displacement | 0.9942 | $2.79 \times 10^{-5}$ | 1.06% | 91% |
 
-: ARD length-scale analysis. For stress, $x_3$ (CTE) has the shortest $\theta$ and highest importance. {#tbl-sensitivity}
+: 10-fold cross-validation results for the GP surrogates. {#tbl-cv}
 
-For stress, $x_3$ (CTE) has the shortest length-scale ($\theta_3 = 3.16$), making it the most influential variable (30.1%), followed by $x_1$ (17.7%) and $x_2$ (17.1%). Raw Pearson correlations confirm: $|r(x_3, \text{stress})| = 0.87$, far exceeding all others ($< 0.39$). For displacement, $x_2$ shows a short length-scale (1.60) due to local nonlinearity, but the dominant global driver remains $x_3$ ($|r| = 0.90$). These rankings are detailed in @tbl-sensitivity and visualized as bar charts in @fig-sensitivity. @fig-main displays the main-effect profiles: as each input sweeps from its lower to upper bound (with all other inputs held at center), the steep decline of stress with decreasing $x_3$ is evident, while the displacement constraint (red dashed line) is most sensitive to $x_6$ (pressure load).
+![10-fold CV: predicted vs actual for stress (left) and displacement (right).](figures/fig3_cv.png){#fig-cv width=80%}
 
-![Variable importance from ARD length-scales. Blue: material; orange: operational.](figures/fig5_sensitivity.png){#fig-sensitivity width=75%}
-
-![Main effects: GP prediction as each input varies, others at center. Shaded: $\pm 2\sigma$. Red dashed: $d^*$.](figures/fig6_main_effects.png){#fig-main width=85%}
+![QQ plots of standardized CV residuals confirm well-calibrated uncertainty.](figures/fig4_qq.png){#fig-qq width=80%}
 
 ## Optimization Convergence
 
@@ -185,9 +168,71 @@ For stress, $x_3$ (CTE) has the shortest length-scale ($\theta_3 = 3.16$), makin
 
 : Sequential optimization convergence. {#tbl-convergence}
 
-The first 20 sequential runs achieved the largest improvement (35.7%), as the GP rapidly identified the low-CTE corner. Subsequent batches refined with diminishing returns, indicating convergence. @tbl-convergence summarizes the cumulative improvement at each stage, and @fig-conv visualizes the full trajectory: the green best-feasible curve in panel (a) drops steeply during the first batch and flattens thereafter, while panel (b) shows that nearly all sequential points remain well below the displacement threshold $d^*$.
+The first 20 sequential runs achieved the largest improvement (35.7%), as the GP rapidly identified the low-CTE corner (@tbl-convergence; @fig-conv). Subsequent batches refined with diminishing returns, indicating convergence.
 
 ![Convergence: (a) stress (blue=feasible, red=infeasible; green=best trajectory). (b) displacement with $d^*$ threshold.](figures/fig7_convergence.png){#fig-conv width=80%}
+
+## Robustness and Validation
+
+The three candidate designs selected for robust testing are listed in @tbl-candidates. All share the same CTE ($x_3 = 5 \times 10^{-6}$) and cooling temperature ($x_5 = 50$°C), consistent with the sensitivity analysis, but differ in Poisson's Ratio, thermal conductivity, and pressure load.
+
+| Candidate | $x_1$ (Pa) | $x_2$ | $x_3$ (K$^{-1}$) | $x_4$ (W/m/K) | $x_5$ (°C) | $x_6$ (Pa) |
+|:----------|:-----------|:------|:-----------------|:--------------|:-----------|:-----------|
+| **C1** | $2.0 \times 10^{11}$ | 0.477 | $5.0 \times 10^{-6}$ | 5.00 | 50 | $4.049 \times 10^5$ |
+| C2 | $2.0 \times 10^{11}$ | 0.469 | $5.0 \times 10^{-6}$ | 7.93 | 50 | $4.395 \times 10^5$ |
+| C3 | $2.0 \times 10^{11}$ | 0.476 | $5.0 \times 10^{-6}$ | 6.47 | 50 | $4.350 \times 10^5$ |
+
+: Design specifications of the 3 robust-test candidates. {#tbl-candidates}
+
+All three candidates achieve 100% displacement feasibility across the $3 \times 3$ perturbation grid, with Candidate 1 showing the lowest mean stress and smallest variability (CV = 0.36%) (@tbl-robust; @fig-robust).
+
+| Candidate | $\mathbb{E}[\text{stress}]$ | $\text{Std}[\text{stress}]$ | CV | Max disp. | Feasible? |
+|:----------|:--------------------------|:---------------------------|:---|:----------|:----------|
+| **C1 (best)** | $2.650 \times 10^8$ | $9.47 \times 10^5$ | 0.36% | $7.10 \times 10^{-4}$ | 9/9 (100%) |
+| C2 | $2.697 \times 10^8$ | $1.32 \times 10^6$ | 0.49% | $6.57 \times 10^{-4}$ | 9/9 (100%) |
+| C3 | $2.685 \times 10^8$ | $1.80 \times 10^6$ | 0.67% | $6.75 \times 10^{-4}$ | 9/9 (100%) |
+
+: Robustness comparison across 3 diverse candidates. {#tbl-robust}
+
+![Robust comparison: stress (a) and displacement (b) boxplots for 3 candidates on a $3 \times 3$ grid.](figures/fig8_robust.png){#fig-robust width=70%}
+
+The 23 final validation runs further test the recommended design (Candidate 1) under random operational perturbations. All 23 runs satisfy the displacement constraint, with worst-case displacement 45% below $d^*$ (@tbl-validation).
+
+| Metric | Value |
+|:-------|:------|
+| $\mathbb{E}[\text{stress}]$ (23 runs) | $2.644 \times 10^8$ Pa |
+| Std[stress] | $7.04 \times 10^5$ Pa |
+| CV[stress] | 0.27% |
+| Max displacement | $7.10 \times 10^{-4}$ m |
+| $\Pr(\text{feasible})$ | 23/23 = 100% |
+| Safety margin vs $d^*$ | 45.4% |
+
+: Final validation results for the recommended design. {#tbl-validation}
+
+
+
+# Discussion
+
+## Sensitivity Analysis
+
+The ARD length-scale parameters $\theta_j$ from the GP surrogates provide an interpretable variable importance measure. Shorter $\theta_j$ means the GP output changes more rapidly with input $j$. Relative importance is computed as $(1/\theta_j) / \sum_k (1/\theta_k)$.
+
+| Variable | Stress $\theta$ | Stress Imp. | Displ. $\theta$ | Displ. Imp. |
+|:---------|:----------------|:------------|:----------------|:------------|
+| $x_1$ (Young's Mod.) | 5.38 | 0.177 | 10.00 | 0.070 |
+| $x_2$ (Poisson's) | 5.57 | 0.171 | 1.60 | 0.440 |
+| $x_3$ (CTE) | **3.16** | **0.301** | 5.05 | 0.139 |
+| $x_4$ (Therm. Cond.) | 10.00 | 0.095 | 6.74 | 0.104 |
+| $x_5$ (Cooling) | 6.63 | 0.143 | 10.00 | 0.070 |
+| $x_6$ (Pressure) | 8.38 | 0.114 | 3.97 | 0.177 |
+
+: ARD length-scale analysis. For stress, $x_3$ (CTE) has the shortest $\theta$ and highest importance. {#tbl-sensitivity}
+
+CTE ($x_3$) emerges as the dominant driver for both stress ($|r| = 0.87$, 30.1% relative importance) and displacement ($|r| = 0.90$), as shown in @tbl-sensitivity and @fig-sensitivity. For displacement, $x_2$ (Poisson's Ratio) also shows high local sensitivity due to nonlinearity.
+
+![Variable importance from ARD length-scales. Blue: material; orange: operational.](figures/fig5_sensitivity.png){#fig-sensitivity width=75%}
+
+
 
 ## Recommended Design
 
@@ -202,55 +247,14 @@ The first 20 sequential runs achieved the largest improvement (35.7%), as the GP
 
 : Recommended blade design specification. {#tbl-design}
 
-The optimizer pushes CTE to its minimum, consistent with the sensitivity analysis. Young's Modulus is at its lower bound (softer material absorbs deformation without high stress), and cooling temperature is at the minimum (maximum cooling). The Poisson's Ratio is near its upper bound (0.477), allowing lateral expansion that relieves stress concentrations. Three variables at their bounds suggests expanding the design ranges could yield further improvements. @tbl-design lists the full optimal specification, and @fig-blade shows the simulated von Mises stress field — the predominantly blue coloring confirms uniformly low stress across the blade surface.
+Consistent with the sensitivity analysis, the optimizer pushes CTE, Young's Modulus, thermal conductivity, and cooling temperature to their lower bounds, while Poisson's Ratio approaches its upper bound to relieve stress concentrations (@tbl-design; @fig-blade). Three variables at their bounds suggests that expanding the design ranges could yield further improvements.
 
 ![Simulated von Mises stress profile for the recommended blade design. The predominantly blue coloring confirms uniformly low stress ($\sim 2.6 \times 10^8$ Pa).](figures/optimal_design.png){#fig-blade width=60%}
-
-## Robustness Under Operational Uncertainty
-
-The $3 \times 3$ factorial grid tests each candidate at 9 extreme combinations of operational perturbations:
-
-| Candidate | $\mathbb{E}[\text{stress}]$ | $\text{Std}[\text{stress}]$ | CV | Max disp. | Feasible? |
-|:----------|:--------------------------|:---------------------------|:---|:----------|:----------|
-| **C1 (best)** | $2.650 \times 10^8$ | $9.47 \times 10^5$ | 0.36% | $7.10 \times 10^{-4}$ | 9/9 (100%) |
-| C2 | $2.697 \times 10^8$ | $1.32 \times 10^6$ | 0.49% | $6.57 \times 10^{-4}$ | 9/9 (100%) |
-| C3 | $2.685 \times 10^8$ | $1.80 \times 10^6$ | 0.67% | $6.75 \times 10^{-4}$ | 9/9 (100%) |
-
-: Robustness comparison across 3 diverse candidates. {#tbl-robust}
-
-All three candidates achieve 100% feasibility, as shown in @tbl-robust. Candidate 1 has the lowest mean stress and smallest variability (CV = 0.36%). @fig-robust displays the corresponding boxplots: the stress distributions (panel a) are tightly concentrated for all three candidates, and every displacement observation (panel b) falls well below $d^*$.
-
-![Robust comparison: stress (a) and displacement (b) boxplots for 3 candidates on a $3 \times 3$ grid.](figures/fig8_robust.png){#fig-robust width=70%}
-
-## Final Validation
-
-| Metric | Value |
-|:-------|:------|
-| $\mathbb{E}[\text{stress}]$ (20 runs) | $2.644 \times 10^8$ Pa |
-| Std[stress] | $7.04 \times 10^5$ Pa |
-| CV[stress] | 0.27% |
-| Max displacement | $7.10 \times 10^{-4}$ m |
-| $\Pr(\text{feasible})$ | 20/20 = 100% |
-| Safety margin vs $d^*$ | 45.4% |
-| Material nearby (3 runs) | All $> 2.78 \times 10^8$ Pa |
-
-: Final validation results for the recommended design. {#tbl-validation}
-
-All 20 perturbation runs satisfy the constraint, with worst-case displacement 45% below $d^*$ (@tbl-validation). The 3 material perturbation runs all produce higher stress, confirming a local optimum. @fig-valid presents histograms of the validation results: stress (panel a) clusters tightly around the mean with a CV of only 0.27%, and all displacement values (panel b) remain far below the $d^*$ threshold.
-
-![Final validation: stress (a) and displacement (b) under 20 random operational perturbations.](figures/fig9_validation.png){#fig-valid width=70%}
-
-# Discussion
 
 ## Engineering Recommendations
 
 Three recommendations emerge: (1) prioritize alloys with the lowest CTE — it is the dominant factor ($|r| = 0.87$ for stress, 0.90 for displacement, shortest $\theta = 3.16$); (2) operate the cooling system at the lowest achievable temperature; (3) current operational tolerances ($\pm 2$°C, $\pm 10^4$ Pa) are safely within the design's robustness envelope (CV < 1%, 100% feasibility).
 
-## Budget Allocation
-
-All 300 runs used: 100 initial (33%), 150 sequential (50%), 27 robust grid (9%), 23 final validation (8%). @fig-budget visualizes this allocation. The two-stage validation — structured $3 \times 3$ grid then random perturbations — provides layered evidence of robustness.
-
-![Budget allocation across all four phases.](figures/fig10_budget.png){#fig-budget width=50%}
 
 ## Computational Infrastructure
 
@@ -260,17 +264,11 @@ Each FEM simulation takes ~80 seconds, making sequential execution of 300 runs p
 2. **Parallel simulation**: A SLURM array job (`--array=1-N%40`) dispatches up to 40 concurrent tasks, each reading one row from the CSV, calling the FEM simulator, and writing its result to an individual output file.
 3. **Result collection**: A final SLURM job (chained via `--dependency=afterok`) merges all individual outputs into a single summary CSV.
 
-The pipeline is orchestrated by a single shell script (`submit_all.sh`) that chains the three stages via SLURM job dependencies. With 40-way parallelism, a batch of 100 simulations completes in ~4 minutes wall-clock time (vs. ~2.2 hours sequential), a ~33$\times$ speedup. This infrastructure enabled rapid iteration through the sequential optimization loop.
-
-## Strengths and Limitations
-
-Strengths: (1) maximin LHD provides excellent initial coverage; (2) GP validated via 10-fold CV with honest re-fitting; (3) EIC balances exploitation and exploration while respecting constraints; (4) $3 \times 3$ factorial grid systematically tests all extreme corners of operational uncertainty.
-
-Limitations: (1) three variables hit their bounds, suggesting expanded ranges (especially CTE below $5 \times 10^{-6}$) could improve performance; (2) GP accuracy degrades in the boundary region where the optimum lies; (3) our robust optimization is two-stage (optimize then validate), which is simpler but less principled than a fully integrated robust EIC formulation.
+The pipeline is orchestrated by a single shell script that chains the three stages via SLURM job dependencies. With 40-way parallelism, a batch of 100 simulations completes in ~4 minutes wall-clock time (vs. ~2.2 hours sequential), a ~33$\times$ speedup. This infrastructure enabled rapid iteration through the sequential optimization loop.
 
 # Conclusion
 
-Through a four-phase framework — maximin LHD, GP surrogate modeling, sequential EIC, and staged robustness validation — we identified a turbine blade design that reduces maximum stress by 41%. The recommended design achieves 100% displacement feasibility under all tested operational perturbations ($3 \times 3$ grid + 20 random runs) with a 45% safety margin. CTE is the dominant design factor, and prioritizing low-CTE alloys is the single most impactful engineering action. All 300 simulator evaluations were utilized, with the GP (CV $R^2 > 0.994$) enabling efficient convergence in 150 sequential runs.
+Through a four-phase framework — maximin LHD, GP surrogate modeling, sequential EIC, and staged robustness validation — we identified a turbine blade design that reduces maximum stress by 41%. The recommended design achieves 100% displacement feasibility under all tested operational perturbations ($3 \times 3$ grid + 23 random runs) with a 45% safety margin. CTE is the dominant design factor, and prioritizing low-CTE alloys is the single most impactful engineering action. All 300 simulator evaluations were utilized, with the GP (CV $R^2 > 0.994$) enabling efficient convergence in 150 sequential runs.
 
 {{< pagebreak >}}
 
@@ -288,13 +286,4 @@ Through a four-phase framework — maximin LHD, GP surrogate modeling, sequentia
 
 ## B. Input–Response Scatter Plots {.unnumbered}
 
-@fig-scatter shows each of the six inputs plotted against stress (top row) and displacement (bottom row) for the 100 initial LHD runs. Infeasible designs (red) tend to concentrate at high CTE ($x_3$) and high pressure load ($x_6$) values, consistent with the sensitivity analysis discussed in the main text.
-
 ![Each input vs. responses (100 LHD). Blue = feasible; red = infeasible.](figures/fig2_scatter.png){#fig-scatter width=85%}
-
-## C. Software {.unnumbered}
-
-- **Simulator**: MATLAB R2022b FEM solver (`simulator.p`)
-- **Analysis**: Python 3.9 (NumPy, SciPy, scikit-learn, Matplotlib, Pandas)
-- **GP**: `sklearn.gaussian_process.GaussianProcessRegressor` with Matérn-5/2 + ARD
-- **Compute**: Duke Computing Cluster (SLURM, up to 40-way parallel); ~80 sec/simulation
