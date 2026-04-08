@@ -36,7 +36,7 @@ Gas turbine engines convert high-temperature, high-pressure combustion gases int
 Physical prototyping is expensive and time-consuming, so we use a finite-element model (FEM) computer simulator that predicts the von Mises stress distribution and displacement across the blade surface. The simulator accepts six input variables (@tbl-inputs) and returns two scalar outputs: maximum stress and maximum displacement.
 
 | Variable | Description | Range | Type |
-|:----|:------------|:----------|:-----|
+|:----|:---------|:----------|:--------|
 | $x_1$ | Young's Modulus | $[2 \times 10^{11},\; 3 \times 10^{11}]$ Pa | Material |
 | $x_2$ | Poisson's Ratio | $[0.1,\; 0.49]$ | Material |
 | $x_3$ | CTE | $[5 \times 10^{-6},\; 1.5 \times 10^{-5}]$ K$^{-1}$ | Material |
