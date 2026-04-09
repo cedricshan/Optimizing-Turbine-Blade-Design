@@ -1,6 +1,5 @@
 ---
 title: "Optimizing Turbine Blade Design"
-subtitle: "STA 643 — Design and Analysis of Experiments"
 author: "Yuan Lei, Yuan Shan, Daisy Xu"
 date: "April 2026"
 format:
