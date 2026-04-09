@@ -1,6 +1,7 @@
 ---
 title: "Optimizing Turbine Blade Design"
 subtitle: "STA 643 — Design and Analysis of Experiments"
+author: "Yuan Lei, Yuan Shan, Daisy Xu"
 date: "April 2026"
 format:
   pdf:
@@ -78,7 +79,7 @@ We generated a 100-point maximin Latin Hypercube Design (LHD) in the six-dimensi
 
 ## Phase 2: Gaussian Process Surrogate Model
 
-We fit independent Gaussian Process (GP) models for stress and displacement. GPs are a natural choice for emulating expensive computer experiments: they interpolate deterministic simulator outputs exactly, provide closed-form uncertainty quantification at untested inputs, and integrate seamlessly with Bayesian optimization via the Expected Improvement criterion. A GP defines a distribution over functions: given observed data, it provides a posterior mean $\mu(\mathbf{z})$ (best prediction) and posterior variance $\sigma^2(\mathbf{z})$ (uncertainty) at any untested point:
+We fit independent Gaussian Process (GP) models for stress and displacement. A GP defines a distribution over functions: given observed data, it provides a posterior mean $\mu(\mathbf{z})$ (best prediction) and posterior variance $\sigma^2(\mathbf{z})$ (uncertainty) at any untested point:
 
 $$
 y(\mathbf{z}) \sim \mathcal{GP}\!\left(\mu,\; k(\mathbf{z}, \mathbf{z}')\right)
@@ -120,7 +121,13 @@ $$
 \Pr[\text{disp}(\mathbf{z}) < d^*] = \Phi\!\left(\frac{d^* - \mu_d(\mathbf{z})}{\sigma_d(\mathbf{z})}\right)
 $$
 
-We generate batches of 15–20 points per iteration with a diversified strategy (EIC on 80,000 random candidates with minimum-distance penalty). Over 150 sequential runs, the best feasible stress improved from $4.46 \times 10^8$ to $2.64 \times 10^8$ Pa.
+We generate batches of 15–20 points per iteration with a diversified strategy. EIC is evaluated on 80,000 random candidates, and points are selected greedily: after each selection, the remaining candidates' EIC scores are multiplied by a Gaussian proximity penalty
+
+$$
+\phi(\mathbf{z}) = 1 - \exp\!\left(-\frac{\min_j \|\mathbf{z} - \mathbf{z}_j\|^2}{2r^2}\right)
+$$
+
+which penalizes candidates that are too close to already-selected or existing points ($r$ is an exclusion radius). The penalized acquisition is then $\text{EIC}_{\text{pen}}(\mathbf{z}) = \text{EIC}(\mathbf{z}) \cdot \phi(\mathbf{z})$. Over 150 sequential runs, the best feasible stress improved from $4.46 \times 10^8$ to $2.64 \times 10^8$ Pa.
 
 ## Phase 4: Robust Validation and Final Verification (50 runs)
 
