@@ -77,6 +77,10 @@ python3 analysis/run_analysis.py
 
 This fits Gaussian Process surrogates, performs Bayesian optimization, and generates all figures.
 
+## Presentation
+
+[Slides (Google Slides)](https://docs.google.com/presentation/d/1UdqcVesdaxPZP7XjMTsK-71AJsDyVhCkq49wHoZOTS4/edit#slide=id.g38b44dc6cea_2_75)
+
 ## Authors
 
 Yuan Lei, Yuan Shan, Daisy Xu
